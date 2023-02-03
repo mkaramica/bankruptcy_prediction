@@ -1,0 +1,813 @@
+---
+title: "Prediction of Company Bankruptcy with Machine Learning"
+author: "Mahdi Karami"
+date: "2023-02-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1- Introduction
+
+The present report aims to perform prediction of companies bankruptcy through machine learning. Multiple features of several companies have been collected from the Taiwan Economic Journal for the years 1999 to 2009. The class label includes the binary status of 'Survived'/'Bankrupted' for each company, where the classification task will be applied on. According to relatively high number of features in the database (95 features), the visualization of the data is challenging. Some statistical methods, in conjunction with correlation analysis, will be engaged to inspect and visualize the data. In addition, the proper orthogonal decomposition (POD) will be implemented to decompose the data into independent components (i.e., modes) which maximize the variance explained by data. Two well-known machine learning techniques will be implemented for classifications task namely, Decision Tree (DT) and Support Vector Machine (SVM). The mentioned algorithm will be applied for both original database and the decomposed database resulted by POD analysis. For DT models, the most important features will be introduced and visualized as well. All the analysis and algorithms are implemented in R programming language.
+
+# 2- Data Preparation
+
+The companies bankruptcy database have been collected from the Taiwan Economic Journal for the years 1999 to 2009. The original database is available on [Kaggle website](https://www.kaggle.com/datasets/fedesoriano/company-bankruptcy-prediction). [This](https://www.sciencedirect.com/science/article/abs/pii/S0377221716000412) journal paper has also referenced the dataset. Alternatively, there is a copy of the bankruptcy dataset in [my github](https://github.com/mkaramica/bankruptcy_prediction).
+
+## Important Note!
+
+The provided R script would download the zip file from the source. In the case of any error, please download the zip file source manually and put it in the root of the working directory (beside the R script).
+
+```{r, include=FALSE}
+# $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+# 1- Preparation
+
+# 1-1- Install & Load Required Libraries
+
+packages <- c("dplyr", "tidyverse", "caret", "plotly", "reshape", "gridExtra",
+              "rpart", "rpart.plot", "ROCR", "MLmetrics", 
+              "randomForest",
+              "kernlab", "e1071", "kableExtra")
+
+
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Packages loading
+invisible(lapply(packages, library, character.only = TRUE))
+
+# Setting the Timeout:
+options(timeout = 120)
+#-------------------------------------------------------------------------------
+
+# 1-2- Loading & Preparation of Dataset:
+
+# Database Source on the web: 
+db_url <- "https://github.com/mkaramica/bankruptcy_prediction/blob/c030c3c2ef6529e7b27f954c7b7d2170c551ede8/archive.zip?raw=true"
+
+# database:
+db <- "archive.zip"
+
+# Download the zipped file if it does not exist in the working directory:
+if(!file.exists(db))
+  download.file(db_url,db)
+
+# Unzip the csv file if it does not exist in the corresponding folder:----------
+database_file <- "data.csv"
+if(!file.exists(database_file))
+  unzip(db, database_file)
+
+
+
+# Read csv file:
+bankruptcyDB <- read.csv(database_file,header=TRUE)
+
+# NOTE: If error happened, please manually download the zip file from the mentioned links and put it in the root of current directory.
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+```
+
+# 3- Data Analysis
+
+The given database is inspected in this section.
+
+## 3-1- Overview of the Company Bankruptcy Database
+
+There are totally 6819 rows and 96 columns in the dataset, where the first column indicates the class label and the remaining 95 columns are database features. The description of the features are listed below.
+
+-   X1 - ROA(C) before interest and depreciation before interest: Return On Total Assets(C)
+-   X2 - ROA(A) before interest and % after tax: Return On Total Assets(A)
+-   X3 - ROA(B) before interest and depreciation after tax: Return On Total Assets(B)
+-   X4 - Operating Gross Margin: Gross Profit/Net Sales
+-   X5 - Realized Sales Gross Margin: Realized Gross Profit/Net Sales
+-   X6 - Operating Profit Rate: Operating Income/Net Sales
+-   X7 - Pre-tax net Interest Rate: Pre-Tax Income/Net Sales
+-   X8 - After-tax net Interest Rate: Net Income/Net Sales
+-   X9 - Non-industry income and expenditure/revenue: Net Non-operating Income Ratio
+-   X10 - Continuous interest rate (after tax): Net Income-Exclude Disposal Gain or Loss/Net Sales
+-   X11 - Operating Expense Rate: Operating Expenses/Net Sales
+-   X12 - Research and development expense rate: (Research and Development Expenses)/Net Sales
+-   X13 - Cash flow rate: Cash Flow from Operating/Current Liabilities
+-   X14 - Interest-bearing debt interest rate: Interest-bearing Debt/Equity
+-   X15 - Tax rate (A): Effective Tax Rate
+-   X16 - Net Value Per Share (B): Book Value Per Share(B)
+-   X17 - Net Value Per Share (A): Book Value Per Share(A)
+-   X18 - Net Value Per Share (C): Book Value Per Share(C)
+-   X19 - Persistent EPS in the Last Four Seasons: EPS-Net Income
+-   X20 - Cash Flow Per Share
+-   X21 - Revenue Per Share (Yuan ¥): Sales Per Share
+-   X22 - Operating Profit Per Share (Yuan ¥): Operating Income Per Share
+-   X23 - Per Share Net profit before tax (Yuan ¥): Pretax Income Per Share
+-   X24 - Realized Sales Gross Profit Growth Rate
+-   X25 - Operating Profit Growth Rate: Operating Income Growth
+-   X26 - After-tax Net Profit Growth Rate: Net Income Growth
+-   X27 - Regular Net Profit Growth Rate: Continuing Operating Income after Tax Growth
+-   X28 - Continuous Net Profit Growth Rate: Net Income-Excluding Disposal Gain or Loss Growth
+-   X29 - Total Asset Growth Rate: Total Asset Growth
+-   X30 - Net Value Growth Rate: Total Equity Growth
+-   X31 - Total Asset Return Growth Rate Ratio: Return on Total Asset Growth
+-   X32 - Cash Reinvestment %: Cash Reinvestment Ratio
+-   X33 - Current Ratio
+-   X34 - Quick Ratio: Acid Test
+-   X35 - Interest Expense Ratio: Interest Expenses/Total Revenue
+-   X36 - Total debt/Total net worth: Total Liability/Equity Ratio
+-   X37 - Debt ratio %: Liability/Total Assets
+-   X38 - Net worth/Assets: Equity/Total Assets
+-   X39 - Long-term fund suitability ratio (A): (Long-term Liability+Equity)/Fixed Assets
+-   X40 - Borrowing dependency: Cost of Interest-bearing Debt
+-   X41 - Contingent liabilities/Net worth: Contingent Liability/Equity
+-   X42 - Operating profit/Paid-in capital: Operating Income/Capital
+-   X43 - Net profit before tax/Paid-in capital: Pretax Income/Capital
+-   X44 - Inventory and accounts receivable/Net value: (Inventory+Accounts Receivables)/Equity
+-   X45 - Total Asset Turnover
+-   X46 - Accounts Receivable Turnover
+-   X47 - Average Collection Days: Days Receivable Outstanding
+-   X48 - Inventory Turnover Rate (times)
+-   X49 - Fixed Assets Turnover Frequency
+-   X50 - Net Worth Turnover Rate (times): Equity Turnover
+-   X51 - Revenue per person: Sales Per Employee
+-   X52 - Operating profit per person: Operation Income Per Employee
+-   X53 - Allocation rate per person: Fixed Assets Per Employee
+-   X54 - Working Capital to Total Assets
+-   X55 - Quick Assets/Total Assets
+-   X56 - Current Assets/Total Assets
+-   X57 - Cash/Total Assets
+-   X58 - Quick Assets/Current Liability
+-   X59 - Cash/Current Liability
+-   X60 - Current Liability to Assets
+-   X61 - Operating Funds to Liability
+-   X62 - Inventory/Working Capital
+-   X63 - Inventory/Current Liability
+-   X64 - Current Liabilities/Liability
+-   X65 - Working Capital/Equity
+-   X66 - Current Liabilities/Equity
+-   X67 - Long-term Liability to Current Assets
+-   X68 - Retained Earnings to Total Assets
+-   X69 - Total income/Total expense
+-   X70 - Total expense/Assets
+-   X71 - Current Asset Turnover Rate: Current Assets to Sales
+-   X72 - Quick Asset Turnover Rate: Quick Assets to Sales
+-   X73 - Working capital Turnover Rate: Working Capital to Sales
+-   X74 - Cash Turnover Rate: Cash to Sales
+-   X75 - Cash Flow to Sales
+-   X76 - Fixed Assets to Assets
+-   X77 - Current Liability to Liability
+-   X78 - Current Liability to Equity
+-   X79 - Equity to Long-term Liability
+-   X80 - Cash Flow to Total Assets
+-   X81 - Cash Flow to Liability
+-   X82 - CFO to Assets
+-   X83 - Cash Flow to Equity
+-   X84 - Current Liability to Current Assets
+-   X85 - Liability-Assets Flag: 1 if Total Liability exceeds Total Assets, 0 otherwise
+-   X86 - Net Income to Total Assets
+-   X87 - Total assets to GNP price
+-   X88 - No-credit Interval
+-   X89 - Gross Profit to Sales
+-   X90 - Net Income to Stockholder's Equity
+-   X91 - Liability to Equity
+-   X92 - Degree of Financial Leverage (DFL)
+-   X93 - Interest Coverage Ratio (Interest expense to EBIT)
+-   X94 - Net Income Flag: 1 if Net Income is Negative for the last two years, 0 otherwise
+-   X95 - Equity to Liability
+
+By inspecting the database, it can be seen that the 95th column (i.e., the 94th feature: "Net.Income.Flag") does not change over all rows. Hence, one can suggest removing this feature since it does not bring any information/difference about the class labels. Accordingly, our database possesses 94 features now. Due to the large number of features with some similar names, the feature number is selected as the name of the feature for understanding and presentation. For convenience, the name of class label column is changed into "label" as well.
+
+```{r, include=FALSE}
+# $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+# 2- Data Inspection
+
+# 2-1- Overview
+nrows <- nrow(bankruptcyDB)
+ncols <- ncol(bankruptcyDB)
+
+# Number of rows and columns:
+print(c(nrows, ncols))
+
+#------------------------------
+# Remove useless column(s): 
+
+# The 95th columns is constant for all rows (all=1):
+#  'Net Income Flag'
+
+print(colnames(bankruptcyDB)[95])
+print(min(bankruptcyDB[,95]))
+print(max(bankruptcyDB[,95]))
+
+#Hence, it does not have any effect and can be removed:
+bankruptcyDB <- bankruptcyDB[,-95]
+#------------------------------
+
+
+# Replace column names with numbers for better presentation & understanding:
+colnames(bankruptcyDB) <- paste0("[",seq(0,ncol(bankruptcyDB)-1),"]" )
+
+# Change the name of class label to 'label'
+colnames(bankruptcyDB)[1] <- "label"
+```
+
+## 3-2- Variation in Data
+
+The portion and number of data labels are indicated in Table 1 which shows a very large level of imbalance with only about 3% of positive label (bankrupted companies).
+
+```{r, include=FALSE}
+# Number & Portion of Class Labels:
+dataLabelTable <- bankruptcyDB %>% group_by(label) %>% 
+  summarize( Number=n() ) %>%
+  mutate("Portion(%)" = format(100*Number/nrow(bankruptcyDB),2) )
+```
+
+
+
+```{r OverviewOfDataLabels, echo = FALSE, result='asis'}
+# Print the table of overview of data labels:
+knitr::kable(dataLabelTable, caption = "Overview of Data Labels")
+```
+Figures 1 and 2 depict the histogram of the first 18 features of the bankruptcy database. One can see that most of the features vary in the range of (0,1) while there are some features with a wide range of variations.
+
+```{r, FeatureHist1, fig.cap="Histograms of Bankruptcy Database: Features #1 to #9", fig.number = TRUE, echo = FALSE, fig.height = 8}
+
+# Showing Histogram Plots for the First 18 Features (column #2 to #19):
+
+# Feature #1 to #9 
+
+# Make a tile plot:
+par(mfrow = c(3, 3))
+par(mar = rep(4, 4))
+
+plots <- list()
+for (i in 1:9) {
+  plots[[i]] <- hist(bankruptcyDB[,i+1],col = 'skyblue', breaks = 20,
+       main = "",
+       xlab=colnames(bankruptcyDB)[i+1], ylab="")
+}
+
+mtext("Histograms of Bankruptcy Database: Features #1 to #9", 
+      outer = TRUE, cex = 1.5, line = -2.5)
+
+
+```
+
+```{r, FeatureHist2, fig.cap="Histograms of Bankruptcy Database: Features #10 to #18", fig.number = TRUE, echo = FALSE, fig.height = 8}
+
+# Feature #10 to #18
+
+# Make a tile plot:
+par(mfrow = c(3, 3))
+par(mar = rep(4, 4))
+
+for (i in 1:9) {
+  hist(bankruptcyDB[,i+10],col = 'skyblue', breaks = 20,
+       main = "",
+       xlab=colnames(bankruptcyDB)[i+10], ylab="")
+}
+mtext("Histograms of Bankruptcy Database: Features #10 to #18", 
+      outer = TRUE, cex = 1.5, line = -2.5)
+```
+
+
+
+According to different range of the features, it is difficult to compare them in a unique measure. Hence, One can suggest normalizing all the features by engaging a linear transformation to limit all the values in the range (0,1).
+
+```{r, include=FALSE}
+# Normalize all the columns to the range 0 to 1:
+
+calcNormalize <- function(vecIn) {
+  return ( (vecIn-min(vecIn))/(max(vecIn)-min(vecIn))  )
+}
+
+for (i in 2:ncol(bankruptcyDB))  {
+  bankruptcyDB[,i] <- calcNormalize(bankruptcyDB[,i])
+}
+```
+
+Figures 3 and 4 depict the variations of all features for normalized database, which are obtained by boxplots. One can see a considerable difference in the variation of the features. Some feature has a relatively wide range of variation which enables them to provide more explained variance for classification analysis. Some other features, on the other hand, vary in a very narrow range, that make it difficult to use them for classification.
+
+```{r showFeatureVariation1, fig.cap="Box Plots of Features of Bankruptcy Database: Features #1 to #46", fig.number=TRUE, echo=FALSE, message = FALSE, fig.height = 8 }
+
+# Show the Features Variation for Normalized Dataset:
+
+# Feature #1 to #46
+ggplot(melt(bankruptcyDB[,2:47]), aes(x=variable, y=value)) + 
+  geom_boxplot() +
+  ggtitle("Box Plots of Features of Bankruptcy Database: Features #1 to #46") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r showFeatureVariation2, fig.cap="Box Plots of Features of Bankruptcy Database: Features #47 to #94", fig.number=TRUE, echo=FALSE, message = FALSE, fig.height = 8 }
+
+# Show the Features Variation for Normalized Dataset:
+
+# Feature #47 to #94
+ggplot(melt(bankruptcyDB[,48:ncol(bankruptcyDB)]), aes(x=variable, y=value)) + 
+  geom_boxplot() +
+  ggtitle("Box Plots of Features of Bankruptcy Database: Features #47 to #94")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+The standard deviation is a very appropriate measure for a normalized database for comparing the variation of the features. Figure 5 illustrates the standard deviation values for the features with the most standard deviations, descendingly sorted.
+
+```{r showFeatureSD, fig.cap="Top 40 Features with the highest Standard Deviations", fig.number=TRUE, echo=FALSE, fig.height = 10 }
+
+# Calculate Standard Deviation of All Columns:
+sd_Columns <- bankruptcyDB[,2:ncol(bankruptcyDB)] %>% apply( 2, sd) 
+
+
+
+# Plot Default Setting:
+par(mfrow = c(1, 1))
+
+barplot(sort(sd_Columns, decreasing = TRUE)[1:40], xlab = "Standard Deviation",
+        ylab = "Feature ID", col="#69b3a2", horiz=T , las=1,
+        main = "Top 40 Features with the highest Standard Deviations")
+
+```
+
+As depicted in Figure 5, the first four features with the most standard deviation are respectively #72, #48, #11, and #74. Figure 6 illustrates the 2D plots of class labels for different combinations of the four mentioned features. The red points indicate the bankrupted cases while the blue circles show the survived companies. One can see that the class labels are completely mixed in the given plots and cannot be simply separated by these features.
+
+```{r, include=FALSE}
+# Show 2D Plots of the Data Labels:
+
+# Four columns with the Largest Standard Deviations:
+names(sort(sd_Columns, decreasing = TRUE))[1:4]
+
+# Feature IDs: #72, #48, #11, #74 
+selectedCols <- c(73,49,12,75)
+
+
+getPlot <- function(db, indx_X, indx_Y) {
+  # Returns a plot of data labels in a 2D graph.
+  # the components of x & Y axes are given by indices.
+  
+  colX <- names(db)[indx_X]
+  colY <- names(db)[indx_Y]
+  
+  # Store the plot in a variable:
+  p <- db %>%  ggplot(aes(x = !!as.name(colX), 
+                          y = !!as.name(colY),
+                          color = label, size = label)) +
+    geom_point() +
+    scale_color_gradient(low = "blue", high = "red") +
+    scale_size(range = c(2, 4)) +
+    theme(legend.position = "none") +
+    xlab(colX) +
+    ylab(colY)
+  
+  return(p)
+}
+
+
+get6_2DPlots <- function(db, givenCols, givenTitle) {
+  # Create 6 plots:
+  p1 <- getPlot(db,givenCols[1], givenCols[2])
+  p2 <- getPlot(db,givenCols[3], givenCols[2])
+  p3 <- getPlot(db,givenCols[1], givenCols[3])
+  p4 <- getPlot(db,givenCols[4], givenCols[3])
+  p5 <- getPlot(db,givenCols[1], givenCols[4])
+  p6 <- getPlot(db,givenCols[2], givenCols[4])
+  
+  # Arrange 6 plots in one graph:
+  plots <- list(p1,p2,p3,p4,p5,p6)
+  return (grid.arrange(grobs = plots,ncol=2, top = givenTitle) )
+}
+
+```
+
+```{r show2Dplots_origin, fig.cap="Original Database: Features with the Highest Standatd Deviation", fig.number= TRUE, echo = FALSE, fig.height = 8}
+
+# 6 plots in one figure:
+get6_2DPlots(db = bankruptcyDB, 
+             givenCols=selectedCols,
+             givenTitle = "Original Database: Features with the Highest Standatd Deviation")
+
+```
+
+
+## 3-3- Calculation of Correlations
+
+Correlations play an important role in data classification, especially for those with too many features. If two features are highly correlated ($\left\lvert corr \right\rvert \approx1$), it means that their change are always in the same direction (or opposite for \$ corr \\approx -1\$). Thus, one can conclude that one of the two features is redundant since it does not add any information to the data. In addition, a strong correlation of a feature with the class label demonstrates the importance of that feature which is able to predict the value of the label.
+
+The following equation gives the correlation of two given vectors, $u_1$ and $u_2$.
+
+$$
+corr(u_1,u_2)=\frac{\sum_{i = 1}^{N}{(u_{1,i} - \bar{u}_1)*(u_{2,i} - \bar{u}_2)}}{\sqrt(\sum_{i = 1}^{N}{(u_{1,i} - \bar{u}_1)^2})*\sqrt(\sum_{i = 1}^{N}{(u_{2,i} - \bar{u}_2)^2})}
+$$
+
+where $\bar{X}$ indicates the average of vector $X$, and $N$ is the length of given vectors. The correlation value always varies between -1 and +1.
+
+The correlations of all combinations of the features are indicated in Figure 7. The correlation of the features with the class label are depicted in the plot as well.
+
+```{r, include=FALSE}
+# Calculate Correlation--------------------------------------------------start--
+calcCorr <- function(vec1,vec2) {
+  # Calculates the correlation of two input vectors.
+  # The output is a single number in range (-1,1).
+  
+  return (sum((vec1-mean(vec1))*(vec2-mean(vec2)))/
+    sqrt(sum((vec1-mean(vec1))^2)*sum((vec2-mean(vec2))^2)) )
+}
+
+corrMat <- matrix(0, nrow = ncol(bankruptcyDB), ncol = ncol(bankruptcyDB))
+
+for (i in 1:ncol(bankruptcyDB)) {
+  for (j in i:ncol(bankruptcyDB)) {
+    corrMat[i,j] <- calcCorr(bankruptcyDB[,i],bankruptcyDB[,j])
+    corrMat[j,i] <- corrMat[i,j]
+  }
+  
+}
+
+colnames(corrMat) <- names(bankruptcyDB)
+rownames(corrMat) <- names(bankruptcyDB)
+
+corr_df <- melt(corrMat)
+colnames(corr_df) <- c("x", "y", "Correlation")
+```
+
+```{r show2dCorrelation, fig.cap="Contour of Cross-Correlations of Features", fig.number=TRUE, echo=FALSE, fig.height = 9 }
+
+ggplot(corr_df, aes(x = x, y = y, fill = Correlation)) +
+  geom_tile(color = "black") +
+  scale_fill_gradient2(limits = c(-1, 1),
+                       low = "blue",
+                       mid = "white",
+                       high = "red") +
+  coord_fixed() +
+  labs(x = "Feature ID", y = "Feature Name & ID") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+
+As shown in Figure 7, the strong correlations among the features are relatively rare. Most of the correlations fall in values near zero. Also, it can be seen that few features have strong correlation with the class label. The distribution of the correlations are shown in Figure 8 in a histogram plot. There totally 181 ($=175+6$) strong correlations ($\left\lvert corr \right\rvert > 0.8$) in the database, where 95 of them are the correlations of each column to itself.
+
+```{r showHistCorr, fig.cap="Histogram of Cross-Correlations of the Features", fig.number=TRUE, echo=FALSE, fig.height = 7 }
+
+corr_df %>% 
+  mutate(bin = cut(Correlation, 
+                   breaks = c(-1, seq(-0.8, 0.8, by = 0.2), 1))) %>% 
+  count(bin) %>%
+  ggplot(aes(bin, n)) + 
+  geom_col(color = "white", fill = "blue") +
+  geom_text(aes(label = n), vjust = -0.5, hjust = 0.5, col = "red") +
+  scale_y_log10() + 
+  ggtitle("Distribtution of Cross-Correlations of the Features") +
+  xlab("Correlation") +
+  ylab("Frequency")
+```
+
+## 3-4- Decomposition of Database
+
+Matrix decomposition is a strong data reduction techniques commonly used for databases with too many features. A very useful method is the proper orthogonal decomposition (POD), which decomposes a given matrix into orthogonal modes. For a given matrix $A$, the POD performs matrix decomposition by the following equation.
+
+$$
+A^{(m*n)}=U^{m*m}*\Sigma^{m*n}*V^{T(n*n)}
+$$
+
+where $U$ and $V$ are respectively the mode shape and temporal mode matrices. The diagonal elements of $\Sigma$ indicate the contribution of each mode in the total matrix, usually being sorted from the largest mode to the smallest one. For actual databases in machine learning applications, the number of rows are greater than that of columns (i.e. $m > n$). Hence, most of the elements of $\Sigma$ would be zero. The POD process is somehow similar to PCA (Principal Components Analysis), which finds the independent (i.e., orthogonal) directions with the maximum variations of data. The orthogonality of the directions of the POD axes leads to the minimum dependency of between the resulted modes. The number of modes is theoretically equal to the number of features, but for most of databases, only a few first mode can reconstruct the original database with a good estimation.
+
+The contribution of each mode as well as the accumulated variance of modes are illustrated in Figures 9 and 10, respectively. One can easily see that the first mode alone contains about 50% of the contribution. In addition, it is seen that the first 25 modes can reconstruct more than 90% of the total variance.
+
+```{r, include=FALSE}
+# Proper Orthogonal Decomposition (POD):---------------------------start--------
+POD_results <- svd(as.matrix(bankruptcyDB[,2:ncol(bankruptcyDB)]))
+
+
+# Normalizing the POD weights
+normSigma <- POD_results$d/sum(POD_results$d)
+
+print(cumsum(normSigma)[25])
+
+# Make POD data frame
+POD_df <- data.frame(matrix(cbind(bankruptcyDB[,1], 
+                                  POD_results$u), 
+                            ncol = ncol(bankruptcyDB)) )
+
+
+colnames(POD_df) <- paste0("POD_", seq(0,ncol(bankruptcyDB)-1))
+
+colnames(POD_df)[1] <- "label"
+
+selectedCols <- c(2,3,4,5)
+```
+
+
+```{r showModeWeightsIndividual, fig.cap="Contribution of Individual POD Modes in Total Variance", fig.number=TRUE, echo=FALSE, fig.height = 7 }
+
+# Plot POD contribution
+barplot(normSigma, names.arg = seq(1,length(normSigma)), 
+        xlab = "Mode Number", ylab = "Contribution", las = 1, 
+        col="green", main = "Contribution of Individual POD Modes in Total Variance")
+```
+
+```{r showModeWeightsCumulative, fig.cap="Accumulated Contribution of POD Modes in Total Variance", fig.number=TRUE, echo=FALSE, fig.height = 7 }
+
+# Plot POD accumulated contribution
+barplot(cumsum(normSigma), names.arg = seq(1,length(normSigma)), 
+        xlab = "Mode Number", ylab = "Accumulated Contribution", las = 1, 
+        col="skyblue", main = "Accumulated Contribution of POD Modes in Total Variance")
+```
+
+Figure 11 presents the 2D distribution of class labels in the domains composed with the four largest principal components (i.e., modes). Comparing to the similar plot of the original database (i.e., Figure 6), one can see that the level of mixing of the labels is lower in POD components although they are still inseparable.
+
+```{r show2DPlotsOfPOD, fig.cap="Original Database: Features with the Highest Standatd Deviation", fig.number=TRUE, echo=FALSE, fig.height = 8 }
+
+# 6 plots of POD modes:
+get6_2DPlots(db = POD_df, 
+             givenCols=selectedCols,
+             givenTitle = "Original Database: Features with the Highest Standatd Deviation")
+# Proper Orthogonal Decomposition (POD):---------------------------End----------
+```
+
+# 4- Data Classification
+
+The classification of the bankruptcy database aims to distinguish the bankrupted companies from the survived ones by considering all the features. Two machine learning approaches will be examined namely, the decision tree (DT) and the support vector machine (SVM). In addition to the original database, the classification algorithms will be implemented for the decomposed database extracted from POD analysis.
+
+## 4-1- Methodology
+
+The decision tree is a classification model in machine learning which provides a sequence of queries (or tests) to distinguish a class label among another classes. The queries commonly consist of yes/no questions that guide the input row of data (with multiple columns or features) through a tree-like path to finally guess its class. The decision tree model is able to provide a good solution for many daily classification tasks in a reasonable time. A very important ability of DT model is that the resulted predicting model is completely interpretable since it is based on a series of simple conditions on the original features. On the other hand, it is not an isotropic model that makes it susceptible to the rotation of the axes of features domain. while DT has basically been designed for classification, it can be used for regression tasks as well. There are several hyper parameters in DT model to change the maximum height/depth of the tree, as well as the minimum number of data points for new breakdowns, that can be used to control the complexity of the model and prevent overfitting from happening. One of the most robust models for classification tasks is SVM which is among the mostly used algorithms in the current machine learning projects. The SVM tries to find lines (or supporting vectors) that classify the data with the maximum margins. For simple problems, it can result in a simple line (in 2D space), or a simple hyperplane (in multi-dimensional space), while several vectors might be engaged for complicated classification tasks. Some limitations of the SVM model include the difficulty of training hyper parameters to achieve an appropriate results, as well as its demanding computational cost. As described in Section 3-4, the POD decomposition is a strong method for dimensionality reduction in databases with too many features. Some classification problems show a very good performance when the decomposed database is considered as the input instead of the original one. the performance of classification of the mentioned algorithms (DT & SVM) will be examined on the POD results and compared to the performance of the original database. The whole database (for original and POD result) is split into train set (80%) and test set (20%) where the former is engaged to build the predicting model and the latter is used to evaluate the model accuracy. One of the basic tools for evaluating a predicting model is the confusion matrix, which is a square matrix of the of number of class labels that presents the number of predicted labels against the actual ones. For a simple database with binary labels, the confusion matrix is given in Table 2. Some important metrics of the predicting models are described below.
+
+```{r confusionMatSchem, fig.cap="Schematic of a Confusion Matrix", fig.number=TRUE, echo = FALSE, result='asis'}
+
+# Print confusion matrix
+confMat <- matrix(c("#TP", "#FP", "#FN", "#TN"),  nrow=2, byrow = TRUE)
+
+colnames(confMat) <- c("Actual Positive","Actual Negative")
+rownames(confMat) <- c("Predicted Positive","Predicted Negative")
+  
+knitr::kable(confMat,  
+             caption = "Schematic of a Confusion Matrix", valign = 't') 
+```
+
+-   Accuracy: Indicates the ratio of truly labeled data points to the total number of points. It is a very useful measure of the model performance, but should be considered with caution for databases with imbalanced class labels.
+
+$$
+Accuracy = \frac{TP + TN}{TP + TN + FN + FP}
+$$
+
+-   Precision: Represents the accuracy of positive labels reported by the predicting model. The equation below displays the calculation of Precision. It somehow means that how much we can trust the reported positive labels of the model.
+
+$$
+Precision = \frac{TP}{TP + FP}
+$$
+
+-   Recall: Or Sensitivity, indicates the ability of model to predict the actual positive values.
+
+$$
+Recall = \frac{TP}{TP + FN}
+$$ - Specificity: Represents the model performance in prediction actual negative labels. A Specificity of 80% for instance means that the predicting model is able to distinguish 8 of 10 negative data points in the dataset. It is similar to the Recall metric, but for the negative label.
+
+$$
+Specificity = \frac{TN}{TN + FP}
+$$ - F1 Score: Considers the Recall and Precision metrics simultaneously, according to the formula below. It is called the harmonic average of Recall and Precision. Like other measures, this metric varies in range (0,1), and becomes unity for an ideal predictor. Based on the requirements of the problems, sometimes the weighted average of Recall and Precision is used to calculate F1 Score.
+
+$$
+F1 = \frac{2* Precision * Recall}{Precision + Recall}
+$$
+
+It should be noted that choosing the right measure depends on the problem requirement. Also, the mentioned definitions and formula are completely depending on which label we assume positive. For the values indicated in the present report, it is assumed that the label '0', or 'Survived' is positive label.
+
+There are multiple metrics (or measures) used to evaluate the performance of a predicting model, all extracted from the confusion matrix.
+
+
+## 4-2- Results and Discussion
+
+Tables 3 to 6 illustrate the confusion matrix of the predicting models (DT & SVM) on the available datasets (Original & POD). One can see that all the results are, more or less, in a similar level of accuracy. Table 7 displays the metrics (or measures) of the classifications task of each model-database combination. For better understanding of the model measures, it should be mentioned that the '0' (i.e., 'survived') class label is considered as the positive one, while '1'(i.e., 'Bankrupted') label is considered as negative. While all the models possess a high Accuracy, they suffer from relatively low Specificity. This occurs due to the imbalance of the class label, where only 3% of the companies in the database are bankrupted. Indeed, most of the models metrics show similar values near unity. The only measure that can distinguish among the models is the Specificity, which is useful when the negative class label is rare. this measure can provide a tool for us to judge the different models, or the same model with various hyper parameters to find the most accurate one. Thus, if we want to perform cross validation analysis to tune the model parameters, the Specificity should be targeted for the present problem.One can see that the DT model with the original database gives the best Specificity while the worst prediction is achieved by SVM with the POD result. The DT-POD and SVM-Original show the same performance in predicting the negative classes correctly.
+
+```{r, include = FALSE}
+# $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+# 3- ِData Classification
+
+
+# Keep required variables in memory and delete the rest of them:
+keptVariables <- c("bankruptcyDB", "POD_df", "POD_results", 
+                   "getPlot", "get6_2DPlots")
+rm(list = ls()[!(ls() %in% keptVariables)])
+
+
+performPredictingModel <- function(trainSet, testSet, model) {
+  # Returns the trained model as well as the confusion matrix.
+  # The model can be either "DT" for Decision Tree, 
+  # or "SVM" for Support Vector Machine.
+  
+  # Convert label class into factor:
+  trainSet$label <- as.factor(trainSet$label)
+  testSet$label <- as.factor(testSet$label)
+  
+  # Train the model with training set:
+  if (model == "DT") {
+    predictingModel <- rpart(label ~ ., data = trainSet, model = TRUE,
+                      minbucket = 5, cp = 0.01)
+  } else if (model == "SVM") {
+    predictingModel <- svm(label ~ ., data = trainSet, 
+                     kernel = "sigmoid", type = 'C-classification',
+                     cost = 0.5)
+  }
+  
+  
+  # Calculate prediction for test set:
+  predictions <- predict(predictingModel, newdata = testSet, type = "class")
+  
+  # Build the confusion matrix
+  confMat <- confusionMatrix(data = predictions, reference = testSet$label,
+                             mode = "everything")
+  
+
+  # Build the outputs in a list:
+  results <- list( predictingModel = predictingModel , confMat = confMat  )
+
+  return( results )
+  
+}
+
+
+# Divide datasets into train and test sets:
+set.seed(1, sample.kind="Rounding") 
+
+# original:
+test_index <- createDataPartition(y = bankruptcyDB$label, 
+                                  times = 1, p = 0.2, list = FALSE)
+
+train_set_original <- bankruptcyDB[-test_index,]
+test_set_original <- bankruptcyDB[test_index,]
+
+# POD result:
+test_index <- createDataPartition(y = POD_df$label, 
+                                  times = 1, p = 0.2, list = FALSE)
+
+train_set_POD <- POD_df[-test_index,]
+test_set_POD <- POD_df[test_index,]
+
+
+
+# Classification of Original Database with DT:
+result_DT_Original <- performPredictingModel(train_set_original, 
+                                             test_set_original,
+                                             model = "DT")
+# Classification of POD Database with DT:
+result_DT_POD <- performPredictingModel(train_set_POD, 
+                                        test_set_POD,
+                                        model = "DT")
+
+# Classification of Original Database with SVM:
+result_SVM_original <- performPredictingModel(train_set_original, 
+                                             test_set_original,
+                                             model = "SVM")
+# Classification of POD Database with SVM:
+result_SVM_POD <- performPredictingModel(train_set_POD, 
+                                        test_set_POD,
+                                        model = "SVM")
+```
+
+```{r confusionMat, echo = FALSE, result='asis'}
+
+# Prepare confusion matrix for models to show them as a table:
+
+confMat_DT_Origin <- result_DT_Original$confMat$table
+confMat_DT_POD <- result_DT_POD$confMat$table
+confMat_SVM_Origin <- result_SVM_original$confMat$table
+confMat_SVM_POD <- result_SVM_POD$confMat$table
+
+colnamesNew <- c("Actual 0","Actual 1")
+rownamesNew <- c("Predicted 0","Predicted 1")
+
+colnames(confMat_DT_Origin) <- colnamesNew
+rownames(confMat_DT_Origin) <- rownamesNew
+
+colnames(confMat_DT_POD) <- colnamesNew
+rownames(confMat_DT_POD) <- rownamesNew 
+
+colnames(confMat_SVM_Origin) <- colnamesNew
+rownames(confMat_SVM_Origin) <- rownamesNew 
+
+colnames(confMat_SVM_POD) <- colnamesNew
+rownames(confMat_SVM_POD) <- rownamesNew 
+
+
+knitr::kable(confMat_DT_Origin, 
+             caption = "Confusion Matrix:DT-Original", valign = 't') 
+  
+knitr::kable(confMat_DT_POD, 
+             caption = "Confusion Matrix:DT-POD", valign = 't') 
+  
+knitr::kable(confMat_SVM_Origin, 
+             caption = "Confusion Matrix:SVM-Original", valign = 't') 
+  
+  
+knitr::kable(confMat_SVM_POD,  
+             caption = "Confusion Matrix:SVM-POD", valign = 't') 
+```
+
+```{r modelsMetrics, fig.cap="Metrics of Predicting Models", fig.number=TRUE, echo = FALSE, result='asis'}
+getModelInfo <- function(confMat) {
+  # Returns the metrics of the predicting model resulted from confusion matrix
+  Accuracy <- confMat$overall[[1]]
+  Specificity <- confMat$byClass[[2]]
+  Precision <- confMat$byClass[[5]]
+  Recall <- confMat$byClass[[6]]
+  F1 <- confMat$byClass[[7]]
+  
+  return(list(Accuracy = Accuracy,
+              Specificity = Specificity,
+              Precision = Precision,
+              Recall= Recall,
+              F1 = F1))
+}
+
+
+# Create a matrix of all metrics
+metricsMat <- matrix(c(unlist(getModelInfo(result_DT_Original$confMat)),
+                       unlist(getModelInfo(result_DT_POD$confMat)),
+                       unlist(getModelInfo(result_SVM_original$confMat)),
+                       unlist(getModelInfo(result_SVM_POD$confMat))
+                      ), nrow = 4, byrow = TRUE )
+
+colnames(metricsMat) <- names(unlist(getModelInfo(result_DT_Original$confMat)))
+rownames(metricsMat) <- c("DT-Original", "DT-POD", "SVM-Original", "SVM-POD")
+
+# Show table of metrics
+knitr::kable(metricsMat, 
+             caption = "Metrics of Predicting Models", valign = 't') 
+
+```
+
+Figures 12 and 13 depict the schematic of the decision tree model for both original database and its POD output, respectively. The maximum depth of the current models is 7, which means that longest path of the tree includes 7 check points. The complexity and depth of the the decision tree can be controlled by its hyper parameters.
+
+```{r showDT_schematicOriginal, fig.cap="Schematic of Decision Tree for Original Database", fig.number=TRUE, echo = FALSE, result='asis', fig.height = 8 }
+
+# Show schematic of DT model for original
+rpart.plot(result_DT_Original$predictingModel,
+           type=2,extra="auto",under=TRUE,fallen.leaves=FALSE,cex=0.7,
+           main="Schematic of Decision Tree for Original Database")
+```
+
+```{r showDT_schematicPOD, fig.cap="Schematic of Decision Tree for POD Results", fig.number=TRUE, echo = FALSE, result='asis', fig.height = 8 }
+
+# Show schematic of DT model for original
+rpart.plot(result_DT_POD$predictingModel,
+           type=2,extra="auto",under=TRUE,fallen.leaves=FALSE,cex=0.7,
+           main="Schematic of Decision Tree for POD Results")
+```
+
+The decision tree model can also report the most important features for building the predicting model. The 6 most important features of the decision tree models for the original and POD data frames are displayed in Table 8. the important features of the original dataset are listed below. - X30 - Net Value Growth Rate: Total Equity Growth - X90 - Net Income to Stockholder's Equity - X19 - Persistent EPS in the Last Four Seasons: EPS-Net Income - X43 - Net profit before tax/Paid-in capital: Pretax Income/Capital - X86 - Net Income to Total Assets - X23 - Per Share Net profit before tax (Yuan ¥): Pretax Income Per Share
+
+For POD data frame, there is no interpretation of the most important features.
+
+```{r mostImportantFeatures, echo = FALSE, result='asis'}
+# Give the most important features:
+importantFeatureOrigin <- names(result_DT_Original$predictingModel$variable.importance[1:6])
+importantFeaturePOD <- names(result_DT_POD$predictingModel$variable.importance[1:6])
+importantFeatures <- matrix( c(importantFeatureOrigin,importantFeaturePOD)
+                             , nrow = 2, byrow = TRUE )
+
+colnames(importantFeatures) <- c("1st", "2nd", "3rd", "4th", "5th", "6th")
+rownames(importantFeatures) <- c("Original", "POD")
+
+knitr::kable(importantFeatures, 
+             caption = "Most Important Features for Decision Tree Model", valign = 't') 
+
+```
+
+Figures 14 and 15 depict the 2D plots for combinations of the first four important features for original database as well as the POD results, respectively. One can see that the class labels shown below are more separable for both the original and POD databases, comparing to the corresponding plots displayed in section 3-3 and 3-4.
+
+```{r 2dPlot_ImportantFeaturesOriginal, fig.cap="Most Important Features of DT Model: Original Database", fig.number=TRUE, echo = FALSE, result='asis', fig.height = 8 }
+featuresCols_Origin <- match(importantFeatureOrigin, names(bankruptcyDB))[1:4]
+featuresCols_POD <- match(importantFeaturePOD, names(POD_df))[1:4]
+
+get6_2DPlots(db = bankruptcyDB, 
+             givenCols=featuresCols_Origin,
+             givenTitle =  "Most Important Features of DT Model: Original Database")
+```
+
+```{r 2dPlot_ImportantFeaturesPOD, fig.cap="Most Important Features of DT Model: POD Database", fig.number=TRUE, echo = FALSE, result='asis', fig.height = 8 }
+get6_2DPlots(db = POD_df, 
+             givenCols=featuresCols_POD,
+             givenTitle =  "Most Important Features of DT Model: POD Database")
+```
+
+# 5- Conclusion
+
+The classification of company bankruptcy database was performed by machine learning. The given database includes 6819 rows and 96 columns, indicating 95 features as well as one binary class label ('0' & '1') to identify whether a company will survived or become bankrupted. There was a high level of imbalance among class labels, with only 3% portion of bankrupted companies. One feature with constant value for all rows was excluded before analysis. All the feature values were normalized to range (0,1) to ease the analysis. The cross correlation analysis was performed to find the highly correlated features. POD analysis (proper orthogonal decomposition) was also engaged to determine the independent directions with the maximum variance. Two machine learning algorithm were used for classification task namely, SVM (Support Vector Machine) and DT (Decision Tree), on both original database and its POD representation. Multiple prediction metrics were studied and compared for the performed calculations including Accuracy, Precision, F1 Score, Recall, and Specificity. Since the dataset was highly imbalanced, the Specificity was found to be the best metric to evaluate the performance of the predicting models. The values of all other metrics were very close to unity. The implementation of DT on the original dataset resulted in the best performance, which was about 30% for Specificity metric. The most important features were also identified by the DT model, and the visualization of class labels for the corresponding features was proposed as well. Future studies can be carried out for fine-tuning of the hyper parameters of the models to increase their performance.
+
+
+# 6- References
+
+[1] <https://github.com/mkaramica/bankruptcy_prediction> 
+
+[2] <https://www.kaggle.com/datasets/fedesoriano/company-bankruptcy-prediction> 
+
+[3] <https://www.sciencedirect.com/science/article/abs/pii/S0377221716000412> 
+
+[4] <https://www.r-bloggers.com/2021/04/decision-trees-in-r/#>:\~:text=Decision%20Trees%20in%20R%2C%20Decision,means%20Y%20variable%20is%20numeric. 
+
+[5] <https://www.geeksforgeeks.org/classifying-data-using-support-vector-machinessvms-in-r/> 
+
+[6] <https://en.wikipedia.org/wiki/Proper_orthogonal_decomposition> 
+
+[7] <https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/svd> 
+
+[8] <https://rafalab.github.io/dsbook/>
