@@ -289,7 +289,7 @@ for (i in 2:ncol(bankruptcyDB))  {
 
 Figures 3 and 4 depict the variations of all features for normalized database, which are obtained by boxplots. One can see a considerable difference in the variation of the features. Some feature has a relatively wide range of variation which enables them to provide more explained variance for classification analysis. Some other features, on the other hand, vary in a very narrow range, that make it difficult to use them for classification.
 
-```{r showFeatureVariation1, fig.cap="Box Plots of Features of Bankruptcy Database: Features #1 to #46", fig.number=TRUE, echo=FALSE, message = FALSE, fig.height = 8 }
+```{r showFeatureVariation1, fig.cap="Box Plots of Normalized Features of Bankruptcy Database: Features #1 to #46", fig.number=TRUE, echo=FALSE, message = FALSE, fig.height = 8 }
 
 # Show the Features Variation for Normalized Dataset:
 
@@ -297,10 +297,12 @@ Figures 3 and 4 depict the variations of all features for normalized database, w
 ggplot(melt(bankruptcyDB[,2:47]), aes(x=variable, y=value)) + 
   geom_boxplot() +
   ggtitle("Box Plots of Features of Bankruptcy Database: Features #1 to #46") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  xlab("Features") +
+  ylab("Normalized Values")
 ```
 
-```{r showFeatureVariation2, fig.cap="Box Plots of Features of Bankruptcy Database: Features #47 to #94", fig.number=TRUE, echo=FALSE, message = FALSE, fig.height = 8 }
+```{r showFeatureVariation2, fig.cap="Box Plots of Normalized Features of Bankruptcy Database: Features #47 to #94", fig.number=TRUE, echo=FALSE, message = FALSE, fig.height = 8 }
 
 # Show the Features Variation for Normalized Dataset:
 
@@ -308,7 +310,9 @@ ggplot(melt(bankruptcyDB[,2:47]), aes(x=variable, y=value)) +
 ggplot(melt(bankruptcyDB[,48:ncol(bankruptcyDB)]), aes(x=variable, y=value)) + 
   geom_boxplot() +
   ggtitle("Box Plots of Features of Bankruptcy Database: Features #47 to #94")+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+ 
+  xlab("Features") +
+  ylab("Normalized Values")
 ```
 
 The standard deviation is a very appropriate measure for a normalized database for comparing the variation of the features. Figure 5 illustrates the standard deviation values for the features with the most standard deviations, descendingly sorted.
@@ -439,7 +443,7 @@ ggplot(corr_df, aes(x = x, y = y, fill = Correlation)) +
                        mid = "white",
                        high = "red") +
   coord_fixed() +
-  labs(x = "Feature ID", y = "Feature Name & ID") +
+  labs(x = "Feature ID", y = "Feature ID") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 ```
 
@@ -514,12 +518,12 @@ barplot(cumsum(normSigma), names.arg = seq(1,length(normSigma)),
 
 Figure 11 presents the 2D distribution of class labels in the domains composed with the four largest principal components (i.e., modes). Comparing to the similar plot of the original database (i.e., Figure 6), one can see that the level of mixing of the labels is lower in POD components although they are still inseparable.
 
-```{r show2DPlotsOfPOD, fig.cap="Original Database: Features with the Highest Standatd Deviation", fig.number=TRUE, echo=FALSE, fig.height = 8 }
+```{r show2DPlotsOfPOD, fig.cap="POD Database: Features with the Highest Standatd Deviation", fig.number=TRUE, echo=FALSE, fig.height = 8 }
 
 # 6 plots of POD modes:
 get6_2DPlots(db = POD_df, 
              givenCols=selectedCols,
-             givenTitle = "Original Database: Features with the Highest Standatd Deviation")
+             givenTitle = "POD Database: Features with the Highest Standatd Deviation")
 # Proper Orthogonal Decomposition (POD):---------------------------End----------
 ```
 
